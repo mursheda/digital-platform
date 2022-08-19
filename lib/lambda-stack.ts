@@ -39,6 +39,7 @@ export class LambdaPoc extends Construct {
       code: lambda.Code.fromAsset(lambda_path),
       handler: 'test.lambda_handler',
       environment: {
+        PREV_RESPONSE: '',
         NotebookInstanceUrl: `https://${smname}.notebook.eu-west-1.sagemaker.aws/tree/${gitname}`
       }
     });
