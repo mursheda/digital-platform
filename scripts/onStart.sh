@@ -6,3 +6,4 @@ cat << EOF >> /home/ec2-user/.gitconfig
         name = SageMaker Instance
         email = sagemaker@example.com
 EOF
+
