@@ -17,7 +17,7 @@ export class SMInstance extends Construct {
 
     // The code that defines your stack goes here
     const S3DSBucket = new s3.Bucket(this, 'MLBucket', {
-      bucketName: 'sagemaker-poc-05082022',
+      bucketName: 'sagemaker-poc-050817abd',
       encryption: s3.BucketEncryption.S3_MANAGED,
       autoDeleteObjects: true,
       versioned: true,
@@ -65,7 +65,7 @@ export class SMInstance extends Construct {
   });
   const cfnCodeRepository = new sagemaker.CfnCodeRepository(this, "MyCfnCodeRepository", {
     gitConfig: {
-    repositoryUrl:  'https://git-codecommit.eu-west-1.amazonaws.com/v1/repos/'+[repo.repositoryName]
+    repositoryUrl:  'https://git-codecommit.us-east-1.amazonaws.com/v1/repos/'+[repo.repositoryName]
   },
 });
 let onStartScript = fs.readFileSync('scripts/onCreate.sh', 'utf8');

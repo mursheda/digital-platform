@@ -2,6 +2,7 @@ import { Stack, StackProps } from "aws-cdk-lib";
 import { Construct } from "constructs";
 import { SMInstance } from "./Sagemaker-module";
 import { LambdaPoc } from "./lambda-stack";
+import { VSCodeStack } from "./VSCodeFargate";
 	
 export class PocMain extends Stack {
 	  constructor(scope: Construct, id: string, props?: StackProps) {
@@ -9,5 +10,6 @@ export class PocMain extends Stack {
 	
 	    const SM = new SMInstance(this, "SageMakerS3Git");	    
         const LM = new LambdaPoc(this, "LambdaApi");
+		const VM = new VSCodeStack(this,"VsCode");
 	  }
 	}

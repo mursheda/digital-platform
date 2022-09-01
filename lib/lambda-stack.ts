@@ -11,6 +11,7 @@ import { gitname, smname} from "./Sagemaker-module";
 import { LambdaTarget } from "aws-cdk-lib/aws-elasticloadbalancingv2-targets";
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
+import * as path from 'path';
 
 export interface LambdaPocProps {}
 export class LambdaPoc extends Construct {
@@ -30,7 +31,7 @@ export class LambdaPoc extends Construct {
     });
     const function_name = 'my-function';
     const lambda_path = '/Users/m.baby/pocmain/src';
-    // lambda function definition
+    // lambda function definition for sagemaker
     const handler = new lambda.Function(this, function_name, {
       functionName: function_name,
       role: role,
@@ -39,7 +40,7 @@ export class LambdaPoc extends Construct {
       code: lambda.Code.fromAsset(lambda_path),
       handler: 'test.lambda_handler',
       environment: {
-        NotebookInstanceUrl: `https://${smname}.notebook.eu-west-1.sagemaker.aws/tree/${gitname}`
+        NotebookInstanceUrl: `https://${smname}.notebook.us-east-1.sagemaker.aws/tree/${gitname}`
       }
     });
 
@@ -51,16 +52,7 @@ export class LambdaPoc extends Construct {
         maxAge: Duration.minutes(1),
       },
     });
-    // const api = new apigateway.LambdaRestApi(this, 'poc-api', {
-    //   handler:handler, 
-    //   proxy: false
-    // });
-    
-    // api.root.addMethod('ANY');
 
-    // const items = api.root.addResource('items');
-    // items.addMethod('GET');  // GET /items
-    // items.addMethod('POST'); // POST /items
     const vpc = new ec2.Vpc(this, "MyVpc",{
       maxAzs: 2,
     });
@@ -81,5 +73,56 @@ export class LambdaPoc extends Construct {
         enabled: true,
     }
     });
+
+
+    // // lambda function def for vscode
+    // const fn = new lambda.Function(this, 'VSCodeHostingLambda', {
+    //   runtime: lambda.Runtime.PYTHON_3_8,
+    //   handler: 'index.handler',
+    //   code: lambda.Code.fromAsset(
+    //     path.join(__dirname, '../../src/vscode-lambda'),
+    //   ),
+    //   // vpc: props.vpc,
+    //   // vpcSubnets: {
+    //   //   subnetType: lambda.SubnetType.PRIVATE_ISOLATED,
+    //   // },
+    //   environment: {
+    //     VSCODE_STACK_ID: id,
+    //   },
+    // });
+    // const lbnew= new elbv2.ApplicationLoadBalancer(this, 'LB_new',{
+    //   vpc: vpc,
+    //   internetFacing: true
+    // });
+    // // // Add a listener and open up the load balancer's security group
+    // // // to the world.
+    // const listener_new = lbnew.addListener('Listener_new', {
+    // port: 80,
+    // open: true
+    // });    
+    // const lambdaFunction_new= fn;
+    // // target to the listener.
+    // listener_new.addTargets('LambdaTargets', {
+    // targets: [new LambdaTarget(lambdaFunction_new)],
+    // healthCheck: {
+    //     enabled: true,
+    // }
+    // });
+    // const alias = new lambda.Alias(this, 'VSCodeHostingLambdaAlias', {
+    //   aliasName: 'VSCodeHostingLambda',
+    //   version: fn.currentVersion,
+    // });
+
+    // this.target_group = new elbv2.ApplicationTargetGroup(
+    //   this,
+    //   'VSCodeHostingLambdaTargetGroup',
+    //   {
+    //     targets: [new elbv2_targets.LambdaTarget(alias)],
+    //   },
+    // );
+
+
+
+
 }
 }
