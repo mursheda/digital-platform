@@ -7,89 +7,125 @@ import { FunctionUrlAuthType } from 'aws-cdk-lib/aws-lambda';
 import { HttpMethod } from 'aws-cdk-lib/aws-events';
 import { Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import { gitname, smname} from "./Sagemaker-module";
-import { LambdaTarget } from "aws-cdk-lib/aws-elasticloadbalancingv2-targets";
+import { gitname, smname } from './Sagemaker-module';
+import { LambdaTarget } from 'aws-cdk-lib/aws-elasticloadbalancingv2-targets';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as path from 'path';
 
-export interface LambdaPocProps {}
+export interface LambdaPocProps {
+  vscodeStackId: string;
+}
 export class LambdaPoc extends Construct {
-
-  constructor(scope: Construct, id: string, props?: LambdaPocProps) {
+  public readonly alb: elbv2.IApplicationLoadBalancer;
+  constructor(scope: Construct, id: string, props: LambdaPocProps) {
     super(scope, id);
 
+    const REGION: string = this.node.tryGetContext('region');
+
     //lambda
-    const role = new iam.Role(this, 'role',{
+    const role = new iam.Role(this, 'role', {
       roleName: 'role',
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
       managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaVPCAccessExecutionRole"),
-        iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"),
-        iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonSageMakerFUllAccess")
-      ]
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          'service-role/AWSLambdaVPCAccessExecutionRole',
+        ),
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          'service-role/AWSLambdaBasicExecutionRole',
+        ),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSageMakerFUllAccess'),
+      ],
     });
     const function_name = 'my-function';
-    const lambda_path = '/Users/m.baby/pocmain/src';
     // lambda function definition for sagemaker
-    const handler = new lambda.Function(this, function_name, {
+    const sageMakerFn = new lambda.Function(this, function_name, {
       functionName: function_name,
       role: role,
       timeout: cdk.Duration.seconds(5),
       runtime: lambda.Runtime.PYTHON_3_8,
-      code: lambda.Code.fromAsset(lambda_path),
+      code: lambda.Code.fromAsset(
+        path.resolve(__dirname, '../src', 'sagemaker-lambda'),
+      ),
       handler: 'test.lambda_handler',
       environment: {
-        NotebookInstanceUrl: `https://${smname}.notebook.us-east-1.sagemaker.aws/tree/${gitname}`
-      }
+        NotebookInstanceUrl: `https://${smname}.notebook.${REGION}.sagemaker.aws/tree/${gitname}`,
+      },
     });
 
-    handler.addFunctionUrl({
+    sageMakerFn.addFunctionUrl({
       authType: FunctionUrlAuthType.NONE,
-      cors:{
+      cors: {
         allowedMethods: [HttpMethod.GET],
-        allowedOrigins: ["*"],
+        allowedOrigins: ['*'],
         maxAge: Duration.minutes(1),
       },
     });
 
-    const vpc = new ec2.Vpc(this, "MyVpc",{
+    const vpc = new ec2.Vpc(this, 'MyVpc', {
       maxAzs: 2,
     });
-    const lb= new elbv2.ApplicationLoadBalancer(this, 'LB',{
+    this.alb = new elbv2.ApplicationLoadBalancer(this, 'LB', {
       vpc: vpc,
-      internetFacing: true
+      internetFacing: true,
     });
     // Add a listener and open up the load balancer's security group
     // to the world.
-    const listener = lb.addListener('Listener', {
-    port: 80,
-    });    
-    const lambdaFunction= handler;
-    // target to the listener.
-    listener.addTargets('LambdaTargets', {
-    targets: [new LambdaTarget(lambdaFunction)],
-    healthCheck: {
-        enabled: true,
-    }
+    const listener = this.alb.addListener('Listener', {
+      port: 80,
     });
 
+    // lambda function def for vscode
+    const vsCodeFn = new lambda.Function(this, 'VSCodeHostingLambda', {
+      runtime: lambda.Runtime.PYTHON_3_8,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset(
+        path.resolve(__dirname, '../src', 'vscode-lambda'),
+      ),
+      environment: {
+        VSCODE_STACK_ID: props.vscodeStackId,
+      },
+      // vpc: props.vpc,
+      // vpcSubnets: {
+      //   subnetType: lambda.SubnetType.PRIVATE_ISOLATED,
+      // },
+    });
 
-    // // lambda function def for vscode
-    // const fn = new lambda.Function(this, 'VSCodeHostingLambda', {
-    //   runtime: lambda.Runtime.PYTHON_3_8,
-    //   handler: 'index.handler',
-    //   code: lambda.Code.fromAsset(
-    //     path.join(__dirname, '../../src/vscode-lambda'),
-    //   ),
-    //   // vpc: props.vpc,
-    //   // vpcSubnets: {
-    //   //   subnetType: lambda.SubnetType.PRIVATE_ISOLATED,
-    //   // },
-    //   environment: {
-    //     VSCODE_STACK_ID: id,
-    //   },
-    // });
+    vsCodeFn.role?.attachInlinePolicy(
+      new iam.Policy(this, 'DescribeCloudformationStacks', {
+        statements: [
+          new iam.PolicyStatement({
+            actions: ['cloudformation:DescribeStacks'],
+            resources: ['*'],
+          }),
+        ],
+      }),
+    );
+
+    vsCodeFn.addFunctionUrl({
+      authType: FunctionUrlAuthType.NONE,
+      cors: {
+        allowedMethods: [HttpMethod.GET],
+        allowedOrigins: ['*'],
+        maxAge: Duration.minutes(1),
+      },
+    });
+
+    // target to the listener.
+    listener.addTargets('SageMakerTargets', {
+      targets: [new LambdaTarget(sageMakerFn)],
+      healthCheck: {
+        enabled: true,
+      },
+    });
+
+    listener.addTargets('VSCodeTargets', {
+      targets: [new LambdaTarget(vsCodeFn)],
+      healthCheck: {
+        enabled: true,
+      },
+    });
+
     // const lbnew= new elbv2.ApplicationLoadBalancer(this, 'LB_new',{
     //   vpc: vpc,
     //   internetFacing: true
@@ -99,7 +135,7 @@ export class LambdaPoc extends Construct {
     // const listener_new = lbnew.addListener('Listener_new', {
     // port: 80,
     // open: true
-    // });    
+    // });
     // const lambdaFunction_new= fn;
     // // target to the listener.
     // listener_new.addTargets('LambdaTargets', {
@@ -120,9 +156,5 @@ export class LambdaPoc extends Construct {
     //     targets: [new elbv2_targets.LambdaTarget(alias)],
     //   },
     // );
-
-
-
-
-}
+  }
 }

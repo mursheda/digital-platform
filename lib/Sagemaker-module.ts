@@ -8,10 +8,10 @@ import fs = require('fs');
 
 export interface SMInstanceProps {}
 
-export var smname: string ='SMPocInstance';
-export var gitname: string ='SMRepo';
+export var smname: string = 'SMPocInstance';
+export var gitname: string = 'SMRepo';
 export class SMInstance extends Construct {
-  public sagemakerNotebookInstance: sagemaker.CfnNotebookInstance;
+  public readonly sagemakerNotebookInstance: sagemaker.CfnNotebookInstance;
   constructor(scope: Construct, id: string, props?: SMInstanceProps) {
     super(scope, id);
 
@@ -23,79 +23,95 @@ export class SMInstance extends Construct {
       versioned: true,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
- });
+    });
     const repo = new codecommit.Repository(this, 'SMRepo', {
-      repositoryName: gitname
- });
-  const sagemakerExecutionRole = new iam.Role(this, "sagemaker-execution-role", {
-    assumedBy: new iam.ServicePrincipal("sagemaker.amazonaws.com"),
-    managedPolicies: [
-      iam.ManagedPolicy.fromAwsManagedPolicyName("AmazonSageMakerFullAccess"),
-      iam.ManagedPolicy.fromManagedPolicyArn(
-        this,
-        "personalize-full-access",
-        "arn:aws:iam::aws:policy/service-role/AmazonPersonalizeFullAccess"
-      ),
-    ],
-    inlinePolicies: {
-      s3Buckets: new iam.PolicyDocument({
-        statements: [
-          new iam.PolicyStatement({
-            effect: iam.Effect.ALLOW,
-            resources: [S3DSBucket.bucketArn],
-            actions: ["s3:ListBucket"],
-          }),
-          new iam.PolicyStatement({
-            effect: iam.Effect.ALLOW,
-            resources: [`${S3DSBucket.bucketArn}/*`],
-            actions: ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
-          }),
-        ],
-      }),
-      repo: new iam.PolicyDocument({
-        statements: [
-          new iam.PolicyStatement({
-            effect: iam.Effect.ALLOW,
-            resources: [repo.repositoryArn],
-            actions: ["codecommit:GitPull", "codecommit:GitPush"],
-          }),
-        ],
-      }),
-    },
-  });
-  const cfnCodeRepository = new sagemaker.CfnCodeRepository(this, "MyCfnCodeRepository", {
-    gitConfig: {
-    repositoryUrl:  'https://git-codecommit.us-east-1.amazonaws.com/v1/repos/'+[repo.repositoryName]
-  },
-});
-let onStartScript = fs.readFileSync('scripts/onCreate.sh', 'utf8');
-let onCreateScript = fs.readFileSync('scripts/onStart.sh', 'utf8');
-const lifecycleConfig = new sagemaker.CfnNotebookInstanceLifecycleConfig(
-  this, 'lifecycle-config', {
-    notebookInstanceLifecycleConfigName: 'SageMaker-lifecycle-config',
-    onCreate: [
+      repositoryName: gitname,
+    });
+    const sagemakerExecutionRole = new iam.Role(
+      this,
+      'sagemaker-execution-role',
       {
-        content: cdk.Fn.base64(onCreateScript!)
-      }
-    ],
-    onStart: [
+        assumedBy: new iam.ServicePrincipal('sagemaker.amazonaws.com'),
+        managedPolicies: [
+          iam.ManagedPolicy.fromAwsManagedPolicyName(
+            'AmazonSageMakerFullAccess',
+          ),
+          iam.ManagedPolicy.fromManagedPolicyArn(
+            this,
+            'personalize-full-access',
+            'arn:aws:iam::aws:policy/service-role/AmazonPersonalizeFullAccess',
+          ),
+        ],
+        inlinePolicies: {
+          s3Buckets: new iam.PolicyDocument({
+            statements: [
+              new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                resources: [S3DSBucket.bucketArn],
+                actions: ['s3:ListBucket'],
+              }),
+              new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                resources: [`${S3DSBucket.bucketArn}/*`],
+                actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject'],
+              }),
+            ],
+          }),
+          repo: new iam.PolicyDocument({
+            statements: [
+              new iam.PolicyStatement({
+                effect: iam.Effect.ALLOW,
+                resources: [repo.repositoryArn],
+                actions: ['codecommit:GitPull', 'codecommit:GitPush'],
+              }),
+            ],
+          }),
+        },
+      },
+    );
+    const cfnCodeRepository = new sagemaker.CfnCodeRepository(
+      this,
+      'MyCfnCodeRepository',
       {
-        content: cdk.Fn.base64(onStartScript!)
-      }
-    ]
-  });
+        gitConfig: {
+          repositoryUrl: repo.repositoryCloneUrlHttp,
+        },
+      },
+    );
+    let onStartScript = fs.readFileSync('scripts/onCreate.sh', 'utf8');
+    let onCreateScript = fs.readFileSync('scripts/onStart.sh', 'utf8');
+    const lifecycleConfig = new sagemaker.CfnNotebookInstanceLifecycleConfig(
+      this,
+      'lifecycle-config',
+      {
+        notebookInstanceLifecycleConfigName: 'SageMaker-lifecycle-config',
+        onCreate: [
+          {
+            content: cdk.Fn.base64(onCreateScript!),
+          },
+        ],
+        onStart: [
+          {
+            content: cdk.Fn.base64(onStartScript!),
+          },
+        ],
+      },
+    );
 
-  this.sagemakerNotebookInstance = new sagemaker.CfnNotebookInstance(this, "notebook-instance", {
-    instanceType: 'ml.t2.medium',
-    roleArn: sagemakerExecutionRole.roleArn,
-    notebookInstanceName: smname,
-    volumeSizeInGb: 10,
-    defaultCodeRepository: cfnCodeRepository.attrCodeRepositoryName,
-    lifecycleConfigName: lifecycleConfig.attrNotebookInstanceLifecycleConfigName,
-  });
+    this.sagemakerNotebookInstance = new sagemaker.CfnNotebookInstance(
+      this,
+      'notebook-instance',
+      {
+        instanceType: 'ml.t2.medium',
+        roleArn: sagemakerExecutionRole.roleArn,
+        notebookInstanceName: smname,
+        volumeSizeInGb: 10,
+        defaultCodeRepository: cfnCodeRepository.attrCodeRepositoryName,
+        lifecycleConfigName:
+          lifecycleConfig.attrNotebookInstanceLifecycleConfigName,
+      },
+    );
 
-  cdk.Tags.of(this).add("component", "sagemaker");
-  
+    cdk.Tags.of(this).add('component', 'sagemaker');
+  }
 }
-}
-

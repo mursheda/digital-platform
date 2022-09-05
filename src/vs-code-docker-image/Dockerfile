@@ -14,50 +14,50 @@ RUN \
   echo "**** install node repo ****" && \
   curl -s https://deb.nodesource.com/gpgkey/nodesource.gpg.key | apt-key add - && \
   echo 'deb https://deb.nodesource.com/node_14.x focal main' \
-    > /etc/apt/sources.list.d/nodesource.list && \
+  > /etc/apt/sources.list.d/nodesource.list && \
   echo "**** install build dependencies ****" && \
   apt-get update && \
   apt-get install -y \
-    build-essential \
-    nodejs && \
+  build-essential \
+  nodejs && \
   echo "**** install runtime dependencies ****" && \
   apt-get install -y \
-    git \
-    jq \
-    libatomic1 \
-    nano \
-    net-tools \
-    python3 \
-    python3-pip \
-    sudo && \
+  git \
+  jq \
+  libatomic1 \
+  nano \
+  net-tools \
+  python3 \
+  python3-pip \
+  sudo && \
   echo "**** install code-server ****" && \
   if [ -z ${CODE_RELEASE+x} ]; then \
-    CODE_RELEASE=$(curl -sX GET https://api.github.com/repos/coder/code-server/releases/latest \
-    | awk '/tag_name/{print $4;exit}' FS='[""]' | sed 's|^v||'); \
+  CODE_RELEASE=$(curl -sX GET https://api.github.com/repos/coder/code-server/releases/latest \
+  | awk '/tag_name/{print $4;exit}' FS='[""]' | sed 's|^v||'); \
   fi && \
   mkdir -p /app/code-server && \
   curl -o \
-    /tmp/code-server.tar.gz -L \
-    "https://github.com/coder/code-server/releases/download/v${CODE_RELEASE}/code-server-${CODE_RELEASE}-linux-amd64.tar.gz" && \
+  /tmp/code-server.tar.gz -L \
+  "https://github.com/coder/code-server/releases/download/v${CODE_RELEASE}/code-server-${CODE_RELEASE}-linux-amd64.tar.gz" && \
   tar xf /tmp/code-server.tar.gz -C \
-    /app/code-server --strip-components=1 && \
+  /app/code-server --strip-components=1 && \
   echo "**** patch 4.0.2 ****" && \
   if [ "${CODE_RELEASE}" = "4.0.2" ] && [ "$(uname -m)" !=  "x86_64" ]; then \
-    cd /app/code-server && \
-    npm i --production @node-rs/argon2; \
+  cd /app/code-server && \
+  npm i --production @node-rs/argon2; \
   fi && \
   echo "**** clean up ****" && \
   apt-get purge --auto-remove -y \
-    build-essential && \
+  build-essential && \
   apt-get clean && \
   rm -rf \
-    /config/* \
-    /tmp/* \
-    /var/lib/apt/lists/* \
-    /var/tmp/*
+  /config/* \
+  /tmp/* \
+  /var/lib/apt/lists/* \
+  /var/tmp/*
 
 # add local files
-COPY /root /
+COPY . .
 
 # ports and volumes
 EXPOSE 8443
